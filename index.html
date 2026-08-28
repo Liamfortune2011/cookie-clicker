@@ -129,6 +129,13 @@
     color:var(--good);
     margin-top:10px;
   }
+  .frenzy-line{
+    font-family:var(--font-mono);
+    font-size:12px;
+    color:var(--cinnamon);
+    margin-top:4px;
+    min-height:16px;
+  }
 
   .oven-wrap{
     position:relative;
@@ -285,6 +292,43 @@
     padding:20px 4px;
     text-align:center;
   }
+
+  .achievement{
+    display:flex;
+    align-items:center;
+    gap:14px;
+    background:var(--bg-panel);
+    border:1px solid var(--line);
+    border-left:4px solid var(--amber-dim);
+    border-radius:10px;
+    padding:12px 14px;
+  }
+  .achievement.locked{ opacity:.35; filter:grayscale(1); }
+  .achievement .glyph{ font-size:26px; width:40px; text-align:center; flex:none; }
+  .achievement .info{ flex:1; min-width:0; }
+  .achievement .name{ font-weight:700; font-size:14.5px; }
+  .achievement .desc{ font-size:12px; color:var(--muted); margin-top:2px; }
+
+  .toast{
+    position:fixed;
+    top:16px;
+    left:50%;
+    transform:translate(-50%,-20px);
+    background:var(--bg-panel);
+    border:1px solid var(--amber-dim);
+    color:var(--cream);
+    font-family:var(--font-body);
+    font-weight:700;
+    font-size:13px;
+    padding:12px 18px;
+    border-radius:10px;
+    box-shadow:0 10px 30px rgba(0,0,0,.4);
+    opacity:0;
+    transition:opacity .3s ease, transform .3s ease;
+    z-index:200;
+    pointer-events:none;
+  }
+  .toast.show{ opacity:1; transform:translate(-50%,0); }
 
   footer{
     padding:14px 24px 26px;
@@ -456,6 +500,7 @@
       <div class="count" id="count">0</div>
       <div class="count-label">crumbs baked</div>
       <div class="cps-line" id="cps">0.0 crumbs / sec</div>
+      <div class="frenzy-line" id="frenzyStatus"></div>
     </div>
 
     <div class="oven-wrap" id="ovenWrap">
@@ -470,10 +515,12 @@
     <div class="shop-tabs">
       <button class="tab-btn active" data-panel="staffPanel">Staff &amp; Machines</button>
       <button class="tab-btn" data-panel="upgradePanel">Upgrades</button>
+      <button class="tab-btn" data-panel="achievementsPanel">Achievements</button>
     </div>
 
     <div class="panel active" id="staffPanel"></div>
     <div class="panel" id="upgradePanel"></div>
+    <div class="panel" id="achievementsPanel"></div>
   </section>
 </main>
 
@@ -492,6 +539,8 @@
     clickPower: 1,
     buildings: {}, // id -> owned count
     upgrades: {},  // id -> bought bool
+    achievements: {}, // id -> bool
+    goldenClicked: 0,
   };
 
   const BUILDINGS = [
@@ -528,6 +577,46 @@
   BUILDINGS.forEach(b=> mult[b.id]=1);
   let globalMult = 1;
 
+  /* ---------------- frenzy (golden cookie boost) ---------------- */
+  let frenzyMult = 1;
+  let frenzyUntil = 0;
+
+  const ACHIEVEMENTS = [
+    { id:"a_first",     glyph:"🍪", name:"First Crumb",        desc:"Bake your very first crumb.",             cond:()=> state.totalEarned>=1 },
+    { id:"a_hundred",   glyph:"🥉", name:"Getting Crumby",      desc:"Earn 1,000 crumbs in total.",             cond:()=> state.totalEarned>=1000 },
+    { id:"a_million",   glyph:"🥈", name:"Crumb Millionaire",   desc:"Earn 1,000,000 crumbs in total.",         cond:()=> state.totalEarned>=1e6 },
+    { id:"a_billion",   glyph:"🥇", name:"Crumb Billionaire",   desc:"Earn 1,000,000,000 crumbs in total.",     cond:()=> state.totalEarned>=1e9 },
+    { id:"a_fingers",   glyph:"👆", name:"Finger Squad",        desc:"Own 10 Extra Fingers.",                   cond:()=> (state.buildings.cursor||0)>=10 },
+    { id:"a_kitchen",   glyph:"🧑‍🍳", name:"Full Kitchen Staff", desc:"Own 10 Apprentices.",                     cond:()=> (state.buildings.apprentice||0)>=10 },
+    { id:"a_factory",   glyph:"🏭", name:"Industrialist",       desc:"Own a Crumb Factory.",                    cond:()=> (state.buildings.factory||0)>=1 },
+    { id:"a_golden1",   glyph:"✨", name:"Golden Touch",        desc:"Catch your first golden crumb.",          cond:()=> state.goldenClicked>=1 },
+    { id:"a_golden10",  glyph:"🌟", name:"Frenzy Fan",          desc:"Catch 10 golden crumbs.",                 cond:()=> state.goldenClicked>=10 },
+    { id:"a_upgrades",  glyph:"📈", name:"Upgrade Enthusiast",  desc:"Buy 5 upgrades.",                         cond:()=> Object.keys(state.upgrades).length>=5 },
+    { id:"a_click",     glyph:"💪", name:"Iron Grip",           desc:"Reach a click power of 8 or more.",       cond:()=> state.clickPower>=8 },
+  ];
+
+  function checkAchievements(){
+    ACHIEVEMENTS.forEach(a=>{
+      if(!state.achievements[a.id] && a.cond()){
+        state.achievements[a.id] = true;
+        showToast(a.glyph+" Achievement unlocked: "+a.name);
+        if(document.getElementById("achievementsPanel").classList.contains("active")) renderAchievements();
+      }
+    });
+  }
+
+  function showToast(text){
+    const t = document.createElement("div");
+    t.className = "toast";
+    t.textContent = text;
+    document.body.appendChild(t);
+    requestAnimationFrame(()=> t.classList.add("show"));
+    setTimeout(()=>{
+      t.classList.remove("show");
+      setTimeout(()=> t.remove(), 400);
+    }, 3600);
+  }
+
   /* ---------------- persistence ---------------- */
   const SAVE_KEY = "emberAndCrumbSave";
 
@@ -558,7 +647,9 @@
       const owned = state.buildings[b.id] || 0;
       total += owned * b.baseCps * mult[b.id];
     });
-    return total * globalMult;
+    total *= globalMult;
+    if(Date.now() < frenzyUntil) total *= frenzyMult;
+    return total;
   }
 
   function fmt(n){
@@ -581,6 +672,24 @@
     cpsEl.textContent = fmt(cps()) + " crumbs / sec";
     const glow = Math.min(100, cps()/50);
     ovenRing.style.setProperty("--glow", glow);
+    updateFrenzyStatus();
+  }
+
+  function updateFrenzyStatus(){
+    const el = document.getElementById("frenzyStatus");
+    const remaining = frenzyUntil - Date.now();
+    if(remaining > 0){
+      el.textContent = "🔥 Frenzy! x"+frenzyMult+" production — "+Math.ceil(remaining/1000)+"s left";
+    } else {
+      el.textContent = "";
+    }
+  }
+
+  function updateAffordability(){
+    document.querySelectorAll(".ticket[data-cost]").forEach(btn=>{
+      const c = parseFloat(btn.dataset.cost);
+      btn.disabled = state.crumbs < c;
+    });
   }
 
   function renderStaff(){
@@ -590,6 +699,7 @@
       const c = cost(b.baseCost, owned);
       const btn = document.createElement("button");
       btn.className = "ticket";
+      btn.dataset.cost = c;
       btn.disabled = state.crumbs < c;
       btn.innerHTML = `
         <div class="glyph">${b.glyph}</div>
@@ -606,6 +716,7 @@
         state.crumbs -= c;
         state.buildings[b.id] = owned + 1;
         renderAll();
+        checkAchievements();
       });
       staffPanel.appendChild(btn);
     });
@@ -623,6 +734,7 @@
     available.forEach(u=>{
       const btn = document.createElement("button");
       btn.className = "ticket";
+      btn.dataset.cost = u.cost;
       btn.disabled = state.crumbs < u.cost;
       btn.innerHTML = `
         <div class="glyph">${u.glyph}</div>
@@ -639,6 +751,7 @@
         state.upgrades[u.id] = true;
         u.effect();
         renderAll();
+        checkAchievements();
       });
       upgradePanel.appendChild(btn);
     });
@@ -652,10 +765,36 @@
     }
   }
 
+  function renderAchievements(){
+    const panel = document.getElementById("achievementsPanel");
+    panel.innerHTML = "";
+    const unlockedCount = ACHIEVEMENTS.filter(a=> state.achievements[a.id]).length;
+    const header = document.createElement("div");
+    header.style.fontSize = "12px";
+    header.style.color = "var(--muted)";
+    header.style.marginBottom = "4px";
+    header.textContent = unlockedCount+" / "+ACHIEVEMENTS.length+" unlocked";
+    panel.appendChild(header);
+
+    ACHIEVEMENTS.forEach(a=>{
+      const unlocked = !!state.achievements[a.id];
+      const div = document.createElement("div");
+      div.className = "achievement" + (unlocked ? "" : " locked");
+      div.innerHTML = `
+        <div class="glyph">${unlocked ? a.glyph : "❔"}</div>
+        <div class="info">
+          <div class="name">${unlocked ? a.name : "???"}</div>
+          <div class="desc">${unlocked ? a.desc : "Keep playing to discover this one."}</div>
+        </div>`;
+      panel.appendChild(div);
+    });
+  }
+
   function renderAll(){
     renderTop();
     renderStaff();
     renderUpgrades();
+    renderAchievements();
   }
 
   /* ---------------- clicking ---------------- */
@@ -666,7 +805,9 @@
     state.crumbs += state.clickPower;
     state.totalEarned += state.clickPower;
     spawnFloat(e, "+"+fmt(state.clickPower));
-    renderAll();
+    renderTop();
+    updateAffordability();
+    checkAchievements();
   });
 
   function spawnFloat(e, text){
@@ -694,12 +835,16 @@
     g.style.left = (15+Math.random()*55)+"%";
     g.style.top = (10+Math.random()*45)+"%";
     g.addEventListener("click", ()=>{
-      const bonus = Math.max(50, Math.floor(cps()*15) + state.clickPower*10);
-      state.crumbs += bonus;
-      state.totalEarned += bonus;
-      spawnFloat({clientX:null, clientY:null}, "+"+fmt(bonus)+" golden!");
+      state.goldenClicked += 1;
+      const duration = 30000 + Math.random()*30000; // 30–60 seconds
+      const boost = 3 + Math.floor(Math.random()*5); // x3 to x7
+      frenzyMult = boost;
+      frenzyUntil = Date.now() + duration;
+      spawnFloat({clientX:null, clientY:null}, "🔥 x"+boost+" for "+Math.round(duration/1000)+"s!");
+      showToast("Frenzy! Production x"+boost+" for "+Math.round(duration/1000)+" seconds");
       g.remove();
       renderAll();
+      checkAchievements();
     });
     ovenSide.appendChild(g);
     setTimeout(()=>{ if(g.parentNode) g.remove(); }, 6000);
@@ -712,6 +857,7 @@
       document.querySelectorAll(".panel").forEach(p=>p.classList.remove("active"));
       btn.classList.add("active");
       document.getElementById(btn.dataset.panel).classList.add("active");
+      renderAll();
     });
   });
 
@@ -730,8 +876,12 @@
     state.clickPower = 1;
     state.buildings = {};
     state.upgrades = {};
+    state.achievements = {};
+    state.goldenClicked = 0;
     BUILDINGS.forEach(b=> mult[b.id]=1);
     globalMult = 1;
+    frenzyMult = 1;
+    frenzyUntil = 0;
     save();
     renderAll();
   });
@@ -744,6 +894,8 @@
     state.totalEarned += gain;
     maybeSpawnGolden();
     renderTop();
+    updateAffordability();
+    checkAchievements();
   }, TICK_MS);
 
   setInterval(save, 8000);
