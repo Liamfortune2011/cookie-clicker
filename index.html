@@ -593,6 +593,21 @@
     { id:"a_golden10",  glyph:"🌟", name:"Frenzy Fan",          desc:"Catch 10 golden crumbs.",                 cond:()=> state.goldenClicked>=10 },
     { id:"a_upgrades",  glyph:"📈", name:"Upgrade Enthusiast",  desc:"Buy 5 upgrades.",                         cond:()=> Object.keys(state.upgrades).length>=5 },
     { id:"a_click",     glyph:"💪", name:"Iron Grip",           desc:"Reach a click power of 8 or more.",       cond:()=> state.clickPower>=8 },
+    { id:"a_trillion",  glyph:"💎", name:"Crumb Trillionaire",  desc:"Earn 1,000,000,000,000 crumbs in total.", cond:()=> state.totalEarned>=1e12 },
+    { id:"a_oven2",     glyph:"🔥", name:"Twice Baked",         desc:"Own 10 Second Ovens.",                    cond:()=> (state.buildings.oven2||0)>=10 },
+    { id:"a_windmill",  glyph:"🌾", name:"Windswept",           desc:"Own 10 Flour Windmills.",                 cond:()=> (state.buildings.windmill||0)>=10 },
+    { id:"a_mine",      glyph:"⛏️", name:"Deep Sugar Vein",     desc:"Own 10 Sugar Mines.",                     cond:()=> (state.buildings.mine||0)>=10 },
+    { id:"a_bank",      glyph:"🏦", name:"Crumb Economy",       desc:"Own a Crumb Bank.",                       cond:()=> (state.buildings.bank||0)>=1 },
+    { id:"a_temple",    glyph:"⛩️", name:"Old Recipes",         desc:"Own an Ancient Bakery.",                  cond:()=> (state.buildings.temple||0)>=1 },
+    { id:"a_tower",     glyph:"🧙", name:"Butter Sorcery",      desc:"Own a Baker's Tower.",                    cond:()=> (state.buildings.tower||0)>=1 },
+    { id:"a_rocket",    glyph:"🚀", name:"Zero-G Baking",       desc:"Own an Orbital Bakery.",                  cond:()=> (state.buildings.rocket||0)>=1 },
+    { id:"a_click16",   glyph:"🦾", name:"Unbreakable Wrist",   desc:"Reach a click power of 16 or more.",      cond:()=> state.clickPower>=16 },
+    { id:"a_golden25",  glyph:"🌠", name:"Frenzy Addict",       desc:"Catch 25 golden crumbs.",                 cond:()=> state.goldenClicked>=25 },
+    { id:"a_upgrades10",glyph:"🏆", name:"Upgrade Hoarder",     desc:"Buy 10 upgrades.",                        cond:()=> Object.keys(state.upgrades).length>=10 },
+    { id:"a_allupgrades",glyph:"👑", name:"Master Baker",       desc:"Buy every available upgrade.",            cond:()=> Object.keys(state.upgrades).length>=UPGRADES.length },
+    { id:"a_cps1000",   glyph:"⚡", name:"High Output",         desc:"Reach 1,000 crumbs per second.",          cond:()=> cps()>=1000 },
+    { id:"a_cps100000", glyph:"🌪️", name:"Crumb Storm",         desc:"Reach 100,000 crumbs per second.",        cond:()=> cps()>=100000 },
+    { id:"a_allbuildings",glyph:"🏗️", name:"Full Empire",       desc:"Own at least 1 of every building type.",  cond:()=> BUILDINGS.every(b=> (state.buildings[b.id]||0)>=1) },
   ];
 
   function checkAchievements(){
